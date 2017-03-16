@@ -15,22 +15,20 @@
  */
 package com.stehno.ersatz
 
-import groovy.transform.TupleConstructor
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
-import org.apache.commons.fileupload.FileItem
-import org.apache.commons.fileupload.FileUpload
-import org.apache.commons.fileupload.UploadContext
-import org.apache.commons.fileupload.disk.DiskFileItemFactory
 import spock.lang.AutoCleanup
 import spock.lang.Specification
 
+import javax.mail.internet.MimeMultipart
+import javax.mail.util.ByteArrayDataSource
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 
 import static MultipartResponseContent.multipart
 import static com.stehno.ersatz.ContentType.MULTIPART_MIXED
 import static com.stehno.ersatz.ContentType.TEXT_PLAIN
+import static com.stehno.ersatz.impl.MimeMultipartResponseContent.mimeMultipart
 import static org.hamcrest.Matchers.greaterThanOrEqualTo
 import static org.hamcrest.Matchers.startsWith
 
@@ -116,7 +114,8 @@ class ErsatzServerSpec extends Specification {
         ersatzServer.verify()
     }
 
-    def 'multipart text'() {
+    // FIXME: test this with encoder for Multipart object
+    def 'multipart response text (raw)'() {
         setup:
         ersatzServer.expectations {
             get('/data') {
@@ -148,7 +147,80 @@ class ErsatzServerSpec extends Specification {
         '''.stripIndent().trim().readLines()
     }
 
-    def 'multipart binary'() {
+    def 'mime multipart response text (raw)'() {
+        setup:
+        ersatzServer.expectations {
+            get('/data') {
+                responds().content(mimeMultipart {
+                    encoder TEXT_PLAIN.value, CharSequence, { o -> o as String }
+                    field 'alpha', 'bravo'
+                    part 'file', 'data.txt', TEXT_PLAIN, 'This is some file data'
+                })
+            }
+        }.start()
+
+        when:
+        okhttp3.Response response = client.newCall(new okhttp3.Request.Builder().get().url(url('/data')).build()).execute()
+
+        then:
+        println '~~~~~~~~~~~~~~~~~~~~~'
+        println response.body().string()
+        //        response.body().string().trim().readLines() == '''
+        //            --t8xOJjySKePdRgBHYD
+        //            Content-Disposition: form-data; name="alpha"
+        //            Content-Type: text/plain
+        //
+        //            bravo
+        //            --t8xOJjySKePdRgBHYD
+        //            Content-Disposition: form-data; name="file"; filename="data.txt"
+        //            Content-Type: text/plain
+        //
+        //            This is some file data
+        //            --t8xOJjySKePdRgBHYD--
+        //        '''.stripIndent().trim().readLines()
+    }
+
+    def 'mime multipart response binary (raw)'() {
+        setup:
+        ersatzServer.expectations {
+            get('/data') {
+                responds().content(mimeMultipart {
+                    encoder TEXT_PLAIN, CharSequence, { o -> o as String }
+                    encoder 'image/jpeg', InputStream, { o -> ((InputStream) o).bytes.encodeBase64() }
+                    part 'file', 'data.txt', TEXT_PLAIN, 'This is some file data'
+                    part 'image', 'test-image.jpg', 'image/jpeg', ErsatzServerSpec.getResourceAsStream('/test-image.jpg'), 'base64'
+                })
+            }
+        }.start()
+
+        when:
+        okhttp3.Response response = client.newCall(new okhttp3.Request.Builder().get().url(url('/data')).build()).execute()
+        ResponseBody responseBody = response.body()
+
+        then:
+        println '~~~~~~~~~~~~~~~~~~~~~'
+        println responseBody.string()
+
+        MimeMultipart mime = new MimeMultipart(new ByteArrayDataSource(responseBody.bytes(), responseBody.contentType().toString()))
+
+        mime.count == 2
+
+        mime.getBodyPart(0).getHeader('Content-Disposition')[0] == 'form-data; name="file"; filename="data.txt"'
+        mime.getBodyPart(0).fileName == 'data.txt'
+        mime.getBodyPart(0).contentType == 'text/plain'
+        mime.getBodyPart(0).inputStream.bytes.length == 22
+
+        mime.getBodyPart(1).getHeader('Content-Disposition')[0] == 'form-data; name="image"; filename="test-image.jpg"'
+        mime.getBodyPart(1).fileName == 'test-image.jpg'
+        mime.getBodyPart(1).contentType == 'image/jpeg'
+
+        byte[] bytes = mime.getBodyPart(1).inputStream.bytes
+        bytes.length == ErsatzServerSpec.getResourceAsStream('/test-image.jpg').bytes.length
+        bytes == ErsatzServerSpec.getResourceAsStream('/test-image.jpg').bytes
+    }
+
+    // FIXME: test this with encoder for Multipart object
+    def 'multipart response binary (raw)'() {
         setup:
         ersatzServer.expectations {
             get('/data') {
@@ -164,24 +236,23 @@ class ErsatzServerSpec extends Specification {
 
         when:
         okhttp3.Response response = client.newCall(new okhttp3.Request.Builder().get().url(url('/data')).build()).execute()
-
-        def down = new ResponseDownloadContent(response.body())
-        FileUpload fu = new FileUpload(new DiskFileItemFactory(100000, File.createTempDir()))
-        List<FileItem> items = fu.parseRequest(down)
+        ResponseBody responseBody = response.body()
 
         then:
-        items.size() == 2
+        MimeMultipart mime = new MimeMultipart(new ByteArrayDataSource(responseBody.bytes(), responseBody.contentType().toString()))
 
-        items[0].fieldName == 'file'
-        items[0].name == 'data.txt'
-        items[0].contentType == 'text/plain'
-        items[0].get().length == 22
+        mime.count == 2
 
-        items[1].fieldName == 'image'
-        items[1].name == 'test-image.jpg'
-        items[1].contentType == 'image/jpeg'
+        mime.getBodyPart(0).getHeader('Content-Disposition')[0] == 'form-data; name="file"; filename="data.txt"'
+        mime.getBodyPart(0).fileName == 'data.txt'
+        mime.getBodyPart(0).contentType == 'text/plain'
+        mime.getBodyPart(0).inputStream.bytes.length == 22
 
-        byte[] bytes = Base64.decoder.decode(items[1].get())
+        mime.getBodyPart(1).getHeader('Content-Disposition')[0] == 'form-data; name="image"; filename="test-image.jpg"'
+        mime.getBodyPart(1).fileName == 'test-image.jpg'
+        mime.getBodyPart(1).contentType == 'image/jpeg'
+
+        byte[] bytes = mime.getBodyPart(1).inputStream.bytes
         bytes.length == ErsatzServerSpec.getResourceAsStream('/test-image.jpg').bytes.length
         bytes == ErsatzServerSpec.getResourceAsStream('/test-image.jpg').bytes
     }
@@ -203,7 +274,7 @@ class ErsatzServerSpec extends Specification {
         server.stop()
     }
 
-    def 'gzip compression supported'(){
+    def 'gzip compression supported'() {
         setup:
         ersatzServer.expectations {
             get('/gzip').header('Accept-Encoding', 'gzip').responds().content('x' * 1000, TEXT_PLAIN)
@@ -217,28 +288,28 @@ class ErsatzServerSpec extends Specification {
         response.networkResponse().headers('Content-Encoding').contains('gzip')
     }
 
-    def 'non-compression supported'(){
+    def 'non-compression supported'() {
         setup:
         ersatzServer.expectations {
             get('/gzip').header('Accept-Encoding', '').responds().content('x' * 1000, TEXT_PLAIN)
         }
 
         when:
-        okhttp3.Response response = client.newCall(new okhttp3.Request.Builder().get().url(url('/gzip')).header('Accept-Encoding','').build()).execute()
+        okhttp3.Response response = client.newCall(new okhttp3.Request.Builder().get().url(url('/gzip')).header('Accept-Encoding', '').build()).execute()
 
         then:
         response.code() == 200
         !response.networkResponse().headers('Content-Encoding').contains('gzip')
     }
 
-    def 'deflate supported'(){
+    def 'deflate supported'() {
         setup:
         ersatzServer.expectations {
             get('/gzip').header('Accept-Encoding', 'deflate').responds().content('x' * 1000, TEXT_PLAIN)
         }
 
         when:
-        okhttp3.Response response = client.newCall(new okhttp3.Request.Builder().get().url(url('/gzip')).header('Accept-Encoding','deflate').build()).execute()
+        okhttp3.Response response = client.newCall(new okhttp3.Request.Builder().get().url(url('/gzip')).header('Accept-Encoding', 'deflate').build()).execute()
 
         then:
         response.code() == 200
@@ -248,36 +319,4 @@ class ErsatzServerSpec extends Specification {
     private String url(final String path) {
         "http://localhost:${ersatzServer.httpPort}${path}"
     }
-
-    @TupleConstructor
-    private static class ResponseDownloadContent implements UploadContext {
-
-        final ResponseBody body
-
-        @Override
-        long contentLength() {
-            body.contentLength()
-        }
-
-        @Override
-        String getCharacterEncoding() {
-            body.contentType().charset().toString()
-        }
-
-        @Override
-        String getContentType() {
-            body.contentType().toString()
-        }
-
-        @Override
-        int getContentLength() {
-            body.contentLength()
-        }
-
-        @Override
-        InputStream getInputStream() throws IOException {
-            body.byteStream()
-        }
-    }
 }
-

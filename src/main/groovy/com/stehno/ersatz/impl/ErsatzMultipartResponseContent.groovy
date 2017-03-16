@@ -35,45 +35,54 @@ class ErsatzMultipartResponseContent extends MultipartResponseContent {
     private final ResponseEncoders localEncoders = new ResponseEncoders()
     private final EncoderChain encoderChain = new EncoderChain(localEncoders)
 
+    @Override
     MultipartResponseContent encoders(final ResponseEncoders responseEncoders) {
         encoderChain.second(responseEncoders)
         this
     }
 
+    @Override
     MultipartResponseContent boundary(final String value) {
         this.boundaryTag = value
         this
     }
 
+    @Override
     MultipartResponseContent encoder(final String contentType, final Class type, final Function<Object, String> encoder) {
         localEncoders.register(contentType, type, encoder)
         this
     }
 
+    @Override
     MultipartResponseContent encoder(final ContentType contentType, final Class type, final Function<Object, String> encoder) {
         localEncoders.register(contentType.value, type, encoder)
         this
     }
 
+    @Override
     MultipartResponseContent field(final String fieldName, final String value) {
         part fieldName, TEXT_PLAIN, value
     }
 
+    @Override
     MultipartResponseContent part(final String fieldName, final String contentType, final Object value) {
         parts << new MultipartPart(fieldName, null, contentType, null, value)
         this
     }
 
+    @Override
     MultipartResponseContent part(final String fieldName, final ContentType contentType, final Object value, final String transferEncoding = null) {
         parts << new MultipartPart(fieldName, null, contentType.value, transferEncoding, value)
         this
     }
 
+    @Override
     MultipartResponseContent part(String fieldName, String fileName, String contentType, Object value, String transferEncoding = null) {
         parts << new MultipartPart(fieldName, fileName, contentType, transferEncoding, value)
         this
     }
 
+    @Override
     MultipartResponseContent part(String fieldName, String fileName, ContentType contentType, Object value, String transferEncoding = null) {
         parts << new MultipartPart(fieldName, fileName, contentType.value, transferEncoding, value)
         this

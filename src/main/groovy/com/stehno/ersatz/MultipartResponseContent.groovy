@@ -166,5 +166,11 @@ abstract class MultipartResponseContent {
      * @return a reference to this MultipartResponseContent instance
      */
     abstract MultipartResponseContent part(String fieldName, String fileName, ContentType contentType, Object value, String transferEncoding = null)
+
+    /**
+     * FIXME: document
+     * @return
+     */
+    abstract String getContentType()
 }
 

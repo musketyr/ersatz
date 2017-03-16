@@ -16,6 +16,7 @@
 package com.stehno.ersatz
 
 import com.stehno.ersatz.impl.ErsatzMultipartResponseContent
+import com.stehno.ersatz.impl.MimeMultipartResponseContent
 
 import java.util.function.Function
 
@@ -53,36 +54,48 @@ class Encoders {
      * message implementing the minimal multipart content specification - you may want to find a more robust implementation if you require a more
      * detailed multipart API.
      */
+    // FIXME: this impl needs to be a simple content wrapper as the one in decoder is (pulls data out of Multipart obj)
+    // FIXME: needs to handle MimeMultipartResponseContent
     static final Function<Object, String> multipart = new Function<Object, String>() {
         @Override
         String apply(final Object obj) {
-            assert obj instanceof MultipartResponseContent
+            if (obj instanceof ErsatzMultipartResponseContent) {
+                ErsatzMultipartResponseContent mrc = obj as ErsatzMultipartResponseContent
 
-            ErsatzMultipartResponseContent mrc = obj as ErsatzMultipartResponseContent
+                StringBuilder out = new StringBuilder()
 
-            StringBuilder out = new StringBuilder()
+                mrc.parts().each { p ->
+                    out.append("--${mrc.boundary}\r\n")
 
-            mrc.parts().each { p ->
-                out.append("--${mrc.boundary}\r\n")
+                    if (p.fileName) {
+                        out.append("Content-Disposition: form-data; name=\"${p.fieldName}\"; filename=\"${p.fileName}\"\r\n")
+                    } else {
+                        out.append("Content-Disposition: form-data; name=\"${p.fieldName}\"\r\n")
+                    }
 
-                if (p.fileName) {
-                    out.append("Content-Disposition: form-data; name=\"${p.fieldName}\"; filename=\"${p.fileName}\"\r\n")
-                } else {
-                    out.append("Content-Disposition: form-data; name=\"${p.fieldName}\"\r\n")
+                    if (p.transferEncoding) {
+                        out.append("Content-Transfer-Encoding: ${p.transferEncoding}\r\n")
+                    }
+
+                    out.append("Content-Type: ${p.contentType}\r\n\r\n")
+
+                    out.append(mrc.encoder(p.contentType as String, p.value.class).apply(p.value)).append('\r\n')
                 }
 
-                if (p.transferEncoding) {
-                    out.append("Content-Transfer-Encoding: ${p.transferEncoding}\r\n")
+                out.append("--${mrc.boundary}--\r\n")
+
+                return out.toString()
+
+            } else if (obj instanceof MimeMultipartResponseContent) {
+                MimeMultipartResponseContent mime = obj as MimeMultipartResponseContent
+                OutputStream outs = new ByteArrayOutputStream()
+                outs.withStream { s->
+                    mime.message.writeTo(s)
                 }
-
-                out.append("Content-Type: ${p.contentType}\r\n\r\n")
-
-                out.append(mrc.encoder(p.contentType as String, p.value.class).apply(p.value)).append('\r\n')
+                return new String(outs.toByteArray())
             }
 
-            out.append("--${mrc.boundary}--\r\n")
-
-            out.toString()
+            throw new IllegalArgumentException("Multipart content of type '${obj.class.simpleName}' is not supported.")
         }
     }
 }

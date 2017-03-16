@@ -16,14 +16,12 @@
 package com.stehno.ersatz
 
 import groovy.json.JsonSlurper
-import org.apache.commons.fileupload.FileItem
-import org.apache.commons.fileupload.FileUpload
-import org.apache.commons.fileupload.UploadContext
-import org.apache.commons.fileupload.disk.DiskFileItemFactory
 
+import javax.mail.internet.MimeBodyPart
+import javax.mail.internet.MimeMultipart
+import javax.mail.util.ByteArrayDataSource
 import java.util.function.BiFunction
 
-import static com.stehno.ersatz.ContentType.TEXT_PLAIN
 import static java.net.URLDecoder.decode
 import static java.nio.charset.StandardCharsets.UTF_8
 
@@ -70,51 +68,30 @@ class Decoders {
         return [:]
     }
 
+    // FIXME: allow direct use of Multipart impl in the request/response body definition
+
     /**
      * Decoder that converts request content bytes into a <code>MultipartRequestContent</code> object populated with the multipart request content.
      */
     static final BiFunction<byte[], DecodingContext, Object> multipart = { byte[] content, DecodingContext ctx ->
-        List<FileItem> parts = new FileUpload(new DiskFileItemFactory(10_000, File.createTempDir())).parseRequest(new UploadContext() {
-            @Override
-            long contentLength() {
-                ctx.contentLength
-            }
-
-            @Override
-            String getCharacterEncoding() {
-                ctx.characterEncoding
-            }
-
-            @Override
-            String getContentType() {
-                ctx.contentType
-            }
-
-            @Override
-            int getContentLength() {
-                ctx.contentLength
-            }
-
-            @Override
-            InputStream getInputStream() throws IOException {
-                new ByteArrayInputStream(content)
-            }
-        })
-
         MultipartRequestContent multipartRequest = new MultipartRequestContent()
 
-        parts.each { part ->
-            DecodingContext partCtx = new DecodingContext(part.size, part.contentType, null, ctx.decoderChain)
+        MimeMultipart mimeMultipart = new MimeMultipart(new ByteArrayDataSource(content, ctx.contentType))
 
-            if (part.isFormField()) {
-                multipartRequest.part(part.fieldName, TEXT_PLAIN, ctx.decoderChain.resolve(TEXT_PLAIN).apply(part.get(), partCtx))
+        mimeMultipart.count.times { n ->
+            MimeBodyPart bodyPart = mimeMultipart.getBodyPart(n) as MimeBodyPart
+            String contentDisposition = bodyPart.getHeader('Content-Disposition')[0]
+            def cdParts = contentDisposition.split(';')
+
+            String fieldName = cdParts[1][(cdParts[1].indexOf('="') + 2)..-2]
+
+            DecodingContext partCtx = new DecodingContext(bodyPart.size, bodyPart.contentType, null, ctx.decoderChain)
+            def value = ctx.decoderChain.resolve(bodyPart.contentType).apply(bodyPart.inputStream.bytes, partCtx)
+
+            if (bodyPart.fileName) {
+                multipartRequest.part(fieldName, bodyPart.fileName, bodyPart.contentType, value)
             } else {
-                multipartRequest.part(
-                    part.fieldName,
-                    part.name,
-                    part.contentType,
-                    ctx.decoderChain.resolve(part.contentType).apply(part.get(), partCtx)
-                )
+                multipartRequest.part(fieldName, bodyPart.contentType, value)
             }
         }
 
