@@ -16,6 +16,8 @@
 package com.stehno.ersatz
 
 import groovy.transform.TupleConstructor
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import org.apache.commons.fileupload.FileItem
@@ -27,6 +29,8 @@ import spock.lang.AutoCleanup
 import spock.lang.Specification
 import spock.lang.Unroll
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 
@@ -486,6 +490,46 @@ class ErsatzServerSpec extends Specification {
 
         then:
         response.body().string() == 'ok'
+
+        and:
+        ersatzServer.verify()
+    }
+
+    // FIXME: need to add HTTP/2 to the protcol verification maybe change that functionality and add secure(true) and scheme(http1.1/https/http2)
+
+    def 'http/2 usage'(){
+        setup:
+        ersatzServer.enableHttp2()
+
+        ersatzServer.expectations {
+            get('/modern').called(1).responds().code(100).content('hello http/2', TEXT_PLAIN)
+        }
+
+        CountDownLatch countDown = new CountDownLatch(1)
+
+        when:
+        okhttp3.Response response = null
+
+        client.newCall(
+            new okhttp3.Request.Builder().url("${ersatzServer.httpUrl}/modern").build()
+        ).enqueue(new Callback() {
+            @Override
+            void onFailure(Call call, IOException e) {
+                countDown.countDown()
+            }
+
+            @Override
+            void onResponse(Call call, okhttp3.Response resp) throws IOException {
+                c
+                response = resp
+                countDown.countDown()
+            }
+        })
+
+        then:
+        countDown.await(10, TimeUnit.SECONDS)
+
+        response.body().string() == 'hello http/2'
 
         and:
         ersatzServer.verify()

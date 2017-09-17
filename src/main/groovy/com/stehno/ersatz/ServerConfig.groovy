@@ -16,6 +16,7 @@
 package com.stehno.ersatz
 
 import groovy.transform.CompileStatic
+import sun.util.logging.resources.logging
 
 import java.util.function.BiFunction
 import java.util.function.Consumer
@@ -40,6 +41,13 @@ interface ServerConfig {
      * @return a reference to the server being configured
      */
     ServerConfig https()
+
+    /**
+     * FIXME: document
+     * @return
+     */
+    ServerConfig enableHttp2()
+    ServerConfig enableHttp2(boolean eanbled)
 
     /**
      * Used to enable/disable the auto-start feature, which will start the server after any call to either of the <code>expectations</code>

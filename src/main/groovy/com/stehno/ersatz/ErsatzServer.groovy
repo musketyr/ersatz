@@ -43,6 +43,7 @@ import java.util.function.Consumer
 import java.util.function.Function
 
 import static groovy.transform.TypeCheckingMode.SKIP
+import static io.undertow.UndertowOptions.ENABLE_HTTP2
 import static io.undertow.util.HttpString.tryFromString
 
 /**
@@ -89,6 +90,7 @@ class ErsatzServer implements ServerConfig {
     private int actualHttpPort = UNSPECIFIED_PORT
     private int actualHttpsPort = UNSPECIFIED_PORT
     private AuthenticationConfig authenticationConfig
+    private boolean supportHttp2
 
     /**
      * Creates a new Ersatz server instance with either the default configuration or a configuration provided by the Groovy DSL closure.
@@ -142,6 +144,12 @@ class ErsatzServer implements ServerConfig {
     @Deprecated
     ServerConfig autoStart() {
         autoStart(true)
+    }
+
+    // FIXME: document
+    ServerConfig enableHttp2(boolean enabled = true) {
+        supportHttp2 = enabled
+        this
     }
 
     /**
@@ -348,7 +356,9 @@ class ErsatzServer implements ServerConfig {
     @SuppressWarnings(['Println', 'DuplicateNumberLiteral'])
     void start() {
         if (!started) {
-            Undertow.Builder builder = Undertow.builder().addHttpListener(EPHEMERAL_PORT, LOCALHOST)
+            Undertow.Builder builder = Undertow.builder()
+            builder.setServerOption(ENABLE_HTTP2, supportHttp2)
+            builder.addHttpListener(EPHEMERAL_PORT, LOCALHOST)
 
             if (httpsEnabled) {
                 builder.addHttpsListener(EPHEMERAL_PORT, LOCALHOST, sslContext())
