@@ -18,8 +18,8 @@ package com.stehno.ersatz
 import com.stehno.ersatz.auth.BasicAuthHandler
 import com.stehno.ersatz.auth.DigestAuthHandler
 import com.stehno.ersatz.auth.SimpleIdentityManager
+import com.stehno.ersatz.config.ErsatzConfig
 import com.stehno.ersatz.impl.ErsatzRequest
-import com.stehno.ersatz.impl.ExpectationsImpl
 import com.stehno.ersatz.impl.UndertowClientRequest
 import com.stehno.ersatz.impl.UnmatchedRequestReport
 import groovy.transform.CompileStatic
@@ -38,9 +38,6 @@ import io.undertow.server.handlers.encoding.GzipEncodingProvider
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 import java.security.KeyStore
-import java.util.function.BiFunction
-import java.util.function.Consumer
-import java.util.function.Function
 
 import static groovy.transform.TypeCheckingMode.SKIP
 import static io.undertow.util.HttpString.tryFromString
@@ -66,7 +63,8 @@ import static io.undertow.util.HttpString.tryFromString
  * See the <a href="http://stehno.com/ersatz/guide/html5/" target="_blank">User Guide</a> for more detailed information.
  */
 @CompileStatic @Slf4j
-class ErsatzServer implements ServerConfig {
+class ErsatzServer {
+    // FIXME: convert to java
 
     /**
      * The response body returned when no matching expectation could be found.
@@ -76,26 +74,39 @@ class ErsatzServer implements ServerConfig {
     private static final String LOCALHOST = 'localhost'
     private static final int EPHEMERAL_PORT = 0
     private static final int UNSPECIFIED_PORT = -1
-    private final RequestDecoders globalDecoders = new RequestDecoders()
-    private final ResponseEncoders globalEncoders = new ResponseEncoders()
-    private final ExpectationsImpl expectations = new ExpectationsImpl(globalDecoders, globalEncoders)
+
+    private final ErsatzConfig config;
     private Undertow server
-    private boolean httpsEnabled
-    private boolean autoStartEnabled = true
     private boolean started
-    private boolean mismatchToConsole
-    private URL keystoreLocation
-    private String keystorePass = 'ersatz'
     private int actualHttpPort = UNSPECIFIED_PORT
     private int actualHttpsPort = UNSPECIFIED_PORT
-    private AuthenticationConfig authenticationConfig
+
+    /**
+     * FIXME: document
+     */
+    ErsatzServer(final ErsatzConfig config) {
+        this.config = config
+
+        // TODO: seems like auto-start should happen here now
+    }
+
+    the way this is implemented breaks the make use case I use:
+
+    ErsatzServer server = new ErsatzServer()
+
+    server.expectations {
+
+    }
+
+    this wont work
 
     /**
      * Creates a new Ersatz server instance with either the default configuration or a configuration provided by the Groovy DSL closure.
      *
      * @param closure the configuration closure (delegated to <code>ServerConfig</code>)
      */
-    ErsatzServer(@DelegatesTo(ServerConfig) final Closure closure = null) {
+    // FIXME: move to Groovy DSL
+    ErsatzServer(@DelegatesTo(ErsatzConfig) final Closure closure) {
         if (closure) {
             closure.delegate = this
             closure.call()
@@ -108,10 +119,10 @@ class ErsatzServer implements ServerConfig {
      *
      * @param consumer the configuration consumer
      */
-    @SuppressWarnings('ThisReferenceEscapesConstructor')
-    ErsatzServer(final Consumer<ServerConfig> consumer) {
-        consumer.accept(this)
-    }
+    //    @SuppressWarnings('ThisReferenceEscapesConstructor')
+    //    ErsatzServer(final Consumer<ServerConfig> consumer) {
+    //        consumer.accept(this)
+    //    }
 
     /**
      * Used to control the enabled/disabled state of HTTPS on the server. By default HTTPS is disabled.
@@ -119,10 +130,10 @@ class ErsatzServer implements ServerConfig {
      * @param enabled optional toggle value (true if not specified)
      * @return a reference to the server being configured
      */
-    ErsatzServer https(boolean enabled = true) {
-        httpsEnabled = enabled
-        this
-    }
+    //    ErsatzServer https(boolean enabled = true) {
+    //        httpsEnabled = enabled
+    //        this
+    //    }
 
     /**
      * Used to enable/disable the auto-start feature, which will start the server after any call to either of the <code>expectations</code>
@@ -134,15 +145,15 @@ class ErsatzServer implements ServerConfig {
      * @param autoStart whether or not auto-start is enabled
      * @return a reference to the server being configured
      */
-    ServerConfig autoStart(boolean autoStart) {
-        autoStartEnabled = autoStart
-        this
-    }
-
-    @Deprecated
-    ServerConfig autoStart() {
-        autoStart(true)
-    }
+    //    ServerConfig autoStart(boolean autoStart) {
+    //        autoStartEnabled = autoStart
+    //        this
+    //    }
+    //
+    //    @Deprecated
+    //    ServerConfig autoStart() {
+    //        autoStart(true)
+    //    }
 
     /**
      * Used to toggle the console output of mismatched request reports. By default they are only rendered in the logging. A value of <code>true</code>
@@ -151,11 +162,11 @@ class ErsatzServer implements ServerConfig {
      * @param toConsole whether or not the report should also be written to the console
      * @return a reference to the server being configured
      */
-    @Override
-    ServerConfig reportToConsole(boolean toConsole = true) {
-        mismatchToConsole = toConsole
-        this
-    }
+    //    @Override
+    //    ServerConfig reportToConsole(boolean toConsole = true) {
+    //        mismatchToConsole = toConsole
+    //        this
+    //    }
 
     /**
      * Allows configuration of an external HTTPS keystore with the given location and password. By default, if this is not specified an internally
@@ -165,11 +176,11 @@ class ErsatzServer implements ServerConfig {
      * @param password the keystore file password (defaults to "ersatz" if omitted)
      * @return a reference to the server being configured
      */
-    ServerConfig keystore(final URL location, final String password = 'ersatz') {
-        keystoreLocation = location
-        keystorePass = password
-        this
-    }
+    //    ServerConfig keystore(final URL location, final String password = 'ersatz') {
+    //        keystoreLocation = location
+    //        keystorePass = password
+    //        this
+    //    }
 
     /**
      * Used to retrieve the port where the HTTP server is running.
@@ -216,16 +227,17 @@ class ErsatzServer implements ServerConfig {
      * @param expects the <code>Consumer<Expectations></code> instance to perform the configuration
      * @return a reference to this server
      */
-    @SuppressWarnings('ConfusingMethodName')
-    ErsatzServer expectations(final Consumer<Expectations> expects) {
-        expects.accept(expectations)
-
-        if (autoStartEnabled) {
-            start()
-        }
-
-        this
-    }
+    // FIXME: ensure that auto-start is still supported
+    //    @SuppressWarnings('ConfusingMethodName')
+    //    ErsatzServer expectations(final Consumer<Expectations> expects) {
+    //        expects.accept(expectations)
+    //
+    //        if (autoStartEnabled) {
+    //            start()
+    //        }
+    //
+    //        this
+    //    }
 
     /**
      * Used to configure HTTP expectations on the server; the provided Groovy <code>Closure</code> will delegate to an <code>Expectations</code>
@@ -236,29 +248,17 @@ class ErsatzServer implements ServerConfig {
      * @param closure the Groovy <code>Closure</code> which will provide expectation configuration via DSL
      * @return a reference to this server
      */
-    @SuppressWarnings('ConfusingMethodName')
-    ErsatzServer expectations(@DelegatesTo(Expectations) final Closure closure) {
-        closure.delegate = expectations
-        closure.call()
-
-        if (autoStartEnabled) {
-            start()
-        }
-
-        this
-    }
-
-    /**
-     * An alternate means of starting the expectation chain.
-     *
-     * Calling this method when auto-start is enabled will <b>NOT</b> start the server. Use one of the other expectation configuration method if
-     * auto-start functionality is desired.
-     *
-     * @return the reference to the Expectation configuration object
-     */
-    Expectations expects() {
-        expectations
-    }
+    //    @SuppressWarnings('ConfusingMethodName')
+    //    ErsatzServer expectations(@DelegatesTo(Expectations) final Closure closure) {
+    //        closure.delegate = expectations
+    //        closure.call()
+    //
+    //        if (autoStartEnabled) {
+    //            start()
+    //        }
+    //
+    //        this
+    //    }
 
     /**
      * Configures the given request content decoder for the specified request content-type.
@@ -267,11 +267,11 @@ class ErsatzServer implements ServerConfig {
      * @param decoder the request content decoder
      * @return the reference to the server configuration
      */
-    @Override
-    ErsatzServer decoder(String contentType, BiFunction<byte[], DecodingContext, Object> decoder) {
-        globalDecoders.register contentType, decoder
-        this
-    }
+    //    @Override
+    //    ErsatzServer decoder(String contentType, BiFunction<byte[], DecodingContext, Object> decoder) {
+    //        globalDecoders.register contentType, decoder
+    //        this
+    //    }
 
     /**
      * Configures the given request content decoder for the specified request content-type.
@@ -280,11 +280,11 @@ class ErsatzServer implements ServerConfig {
      * @param decoder the request content decoder
      * @return the reference to the server configuration
      */
-    @Override
-    ErsatzServer decoder(ContentType contentType, BiFunction<byte[], DecodingContext, Object> decoder) {
-        globalDecoders.register contentType, decoder
-        this
-    }
+    //    @Override
+    //    ErsatzServer decoder(ContentType contentType, BiFunction<byte[], DecodingContext, Object> decoder) {
+    //        globalDecoders.register contentType, decoder
+    //        this
+    //    }
 
     /**
      * Registers a response body encoder.
@@ -294,11 +294,11 @@ class ErsatzServer implements ServerConfig {
      * @param encoder the encoder function
      * @return a reference to this server configuration
      */
-    @Override
-    ServerConfig encoder(String contentType, Class objectType, Function<Object, String> encoder) {
-        globalEncoders.register contentType, objectType, encoder
-        this
-    }
+    //    @Override
+    //    ServerConfig encoder(String contentType, Class objectType, Function<Object, String> encoder) {
+    //        globalEncoders.register contentType, objectType, encoder
+    //        this
+    //    }
 
     /**
      * Registers a response body encoder.
@@ -308,11 +308,11 @@ class ErsatzServer implements ServerConfig {
      * @param encoder the encoder function
      * @return a reference to this server configuration
      */
-    @Override
-    ServerConfig encoder(ContentType contentType, Class objectType, Function<Object, String> encoder) {
-        globalEncoders.register contentType, objectType, encoder
-        this
-    }
+    //    @Override
+    //    ServerConfig encoder(ContentType contentType, Class objectType, Function<Object, String> encoder) {
+    //        globalEncoders.register contentType, objectType, encoder
+    //        this
+    //    }
 
     /**
      * Registers authentication configuration as a Groovy Closure.
@@ -320,13 +320,13 @@ class ErsatzServer implements ServerConfig {
      * @param closure the configuration closure
      * @return a reference to this server configuration
      */
-    @Override
-    ServerConfig authentication(@DelegatesTo(AuthenticationConfig) final Closure closure) {
-        authenticationConfig = new AuthenticationConfig()
-        closure.delegate = authenticationConfig
-        closure.call()
-        this
-    }
+    //    @Override
+    //    ServerConfig authentication(@DelegatesTo(AuthenticationConfig) final Closure closure) {
+    //        authenticationConfig = new AuthenticationConfigImpl()
+    //        closure.delegate = authenticationConfig
+    //        closure.call()
+    //        this
+    //    }
 
     /**
      * Registers authentication configuration as a <code>Consumer<AuthenticationConfig></code>.
@@ -334,12 +334,12 @@ class ErsatzServer implements ServerConfig {
      * @param config the configuration Consumer
      * @return a reference to this server configuration
      */
-    @Override
-    ServerConfig authentication(final Consumer<AuthenticationConfig> config) {
-        authenticationConfig = new AuthenticationConfig()
-        config.accept(authenticationConfig)
-        return this
-    }
+    //    @Override
+    //    ServerConfig authentication(final Consumer<AuthenticationConfig> config) {
+    //        authenticationConfig = new AuthenticationConfigImpl()
+    //        config.accept(authenticationConfig)
+    //        return this
+    //    }
 
     /**
      * Used to start the HTTP server for test interactions. This method should be called after configuration of expectations and before the test
@@ -350,7 +350,7 @@ class ErsatzServer implements ServerConfig {
         if (!started) {
             Undertow.Builder builder = Undertow.builder().addHttpListener(EPHEMERAL_PORT, LOCALHOST)
 
-            if (httpsEnabled) {
+            if (config.httpsEnabled) {
                 builder.addHttpsListener(EPHEMERAL_PORT, LOCALHOST, sslContext())
             }
 
@@ -363,7 +363,8 @@ class ErsatzServer implements ServerConfig {
 
                                 log.debug 'Request: {}', clientRequest
 
-                                ErsatzRequest request = expectations.findMatch(clientRequest) as ErsatzRequest
+                                // FIXME: these expectations need to be relocated
+                                ErsatzRequest request = config.expectations.findMatch(clientRequest) as ErsatzRequest
                                 if (request) {
                                     Response currentResponse = request.currentResponse
                                     request.mark(clientRequest)
@@ -372,12 +373,12 @@ class ErsatzServer implements ServerConfig {
                                 } else {
                                     UnmatchedRequestReport report = new UnmatchedRequestReport(
                                         clientRequest,
-                                        expectations.requests as List<ErsatzRequest>
+                                        config.expectations.expectations as List<ErsatzRequest>
                                     )
 
                                     log.warn report.toString()
 
-                                    if (mismatchToConsole) {
+                                    if (config.reportToConsoleEnabled) {
                                         println report
                                     }
 
@@ -406,7 +407,7 @@ class ErsatzServer implements ServerConfig {
      * Clears all configured expectations from the server. Does not affect global encoders or decoders.
      */
     void clearExpectations() {
-        expectations.clear()
+        config.clearExpectations()
     }
 
     /**
@@ -431,15 +432,15 @@ class ErsatzServer implements ServerConfig {
      * @return <code>true</code> if all call criteria were met during test execution.
      */
     boolean verify() {
-        expectations.verify()
+        config.verifyExpectations()
     }
 
     private HttpHandler applyAuthentication(final HttpHandler handler) {
         HttpHandler result = handler
 
-        if (authenticationConfig) {
-            SimpleIdentityManager identityManager = new SimpleIdentityManager(authenticationConfig.username, authenticationConfig.password)
-            switch (authenticationConfig.type) {
+        if (config.authentication) {
+            SimpleIdentityManager identityManager = new SimpleIdentityManager(config.authentication.username, config.authentication.password)
+            switch (config.authentication.type) {
                 case Authentication.BASIC:
                     result = new BasicAuthHandler(identityManager).apply(result)
                     break
@@ -497,7 +498,7 @@ class ErsatzServer implements ServerConfig {
     private void applyPorts() {
         actualHttpPort = (server.listenerInfo[0].address as InetSocketAddress).port
 
-        if (httpsEnabled) {
+        if (config.httpsEnabled) {
             actualHttpsPort = (server.listenerInfo[1].address as InetSocketAddress).port
         }
     }
@@ -506,12 +507,12 @@ class ErsatzServer implements ServerConfig {
     private SSLContext sslContext() {
         KeyStore keyStore = KeyStore.getInstance('JKS')
 
-        (keystoreLocation ?: ErsatzServer.getResource('/ersatz.keystore')).withInputStream { instr ->
-            keyStore.load(instr, keystorePass.toCharArray())
+        (config.keystoreLocation ?: ErsatzServer.getResource('/ersatz.keystore')).withInputStream { instr ->
+            keyStore.load(instr, config.keystorePass.toCharArray())
         }
 
         KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.defaultAlgorithm)
-        keyManagerFactory.init(keyStore, keystorePass.toCharArray())
+        keyManagerFactory.init(keyStore, config.keystorePass.toCharArray())
 
         SSLContext sslContext = SSLContext.getInstance('TLS')
         sslContext.init(keyManagerFactory.keyManagers, null, null)

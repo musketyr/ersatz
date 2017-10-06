@@ -15,6 +15,7 @@
  */
 package com.stehno.ersatz
 
+import com.stehno.ersatz.config.AuthenticationConfig
 import groovy.transform.CompileStatic
 
 import java.util.function.BiFunction

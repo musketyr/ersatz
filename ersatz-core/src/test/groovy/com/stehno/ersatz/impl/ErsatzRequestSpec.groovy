@@ -334,7 +334,7 @@ class ErsatzRequestSpec extends Specification {
         }.start()
 
         expect:
-        exec(clientGet('/test').build()).body().string() == NOT_FOUND_BODY
+        exec(clientGet('/test').build()).body().string() == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: header'() {
@@ -353,7 +353,7 @@ class ErsatzRequestSpec extends Specification {
         value = exec(clientGet('/test').build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: headers'() {
@@ -372,7 +372,7 @@ class ErsatzRequestSpec extends Specification {
         value = exec(clientGet('/test').addHeader('alpha', 'one').build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: query'() {
@@ -391,7 +391,7 @@ class ErsatzRequestSpec extends Specification {
         value = exec(clientGet('/testing').build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: queries'() {
@@ -410,7 +410,7 @@ class ErsatzRequestSpec extends Specification {
         value = exec(clientGet('/testing').build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: cookie'() {
@@ -429,7 +429,7 @@ class ErsatzRequestSpec extends Specification {
         value = exec(clientGet('/test').build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: cookies'() {
@@ -448,7 +448,7 @@ class ErsatzRequestSpec extends Specification {
         value = exec(clientGet('/test').build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     private Builder clientGet(final String path) {

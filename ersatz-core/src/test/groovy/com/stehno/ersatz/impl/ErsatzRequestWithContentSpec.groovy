@@ -84,7 +84,7 @@ class ErsatzRequestWithContentSpec extends Specification {
         value = exec(clientPost('/posting', 'text/plain', '').build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: body and content-type'() {
@@ -103,7 +103,7 @@ class ErsatzRequestWithContentSpec extends Specification {
         value = exec(clientPost('/posting', 'text/html', BODY_CONTENT).build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: body with converter (builder)'() {
@@ -124,7 +124,7 @@ class ErsatzRequestWithContentSpec extends Specification {
         value = exec(clientPost('/posting', 'text/html', BODY_CONTENT).build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'matching: body with converter (dls)'() {
@@ -151,7 +151,7 @@ class ErsatzRequestWithContentSpec extends Specification {
         value = exec(clientPost('/posting', 'text/html', BODY_CONTENT).build()).body().string()
 
         then:
-        value == NOT_FOUND_BODY
+        value == ErsatzServer.NOT_FOUND_BODY
     }
 
     def 'application/x-www-form-urlencoded'() {
