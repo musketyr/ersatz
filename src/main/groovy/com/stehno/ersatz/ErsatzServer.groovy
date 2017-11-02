@@ -78,7 +78,7 @@ class ErsatzServer implements ServerConfig {
     private static final int UNSPECIFIED_PORT = -1
     private final RequestDecoders globalDecoders = new RequestDecoders()
     private final ResponseEncoders globalEncoders = new ResponseEncoders()
-    private final ExpectationsImpl expectations = new ExpectationsImpl(globalDecoders, globalEncoders)
+    private /*TODO: final*/ ExpectationsImpl expectations = new ExpectationsImpl(globalDecoders, globalEncoders)
     private Undertow server
     private boolean httpsEnabled
     private boolean autoStartEnabled = true
@@ -219,6 +219,16 @@ class ErsatzServer implements ServerConfig {
     @SuppressWarnings('ConfusingMethodName')
     ErsatzServer expectations(final Consumer<Expectations> expects) {
         expects.accept(expectations)
+
+        if (autoStartEnabled) {
+            start()
+        }
+
+        this
+    }
+
+    ErsatzServer expectations(final Expectations expects) {
+        expectations = expects as ExpectationsImpl
 
         if (autoStartEnabled) {
             start()
