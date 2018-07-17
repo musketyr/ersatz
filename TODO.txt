@@ -1,0 +1,6 @@
+
+This will require modification of the way response content is stored and encoded, which may change the interfaces.
+I may be able to edge around it with some groovy tricks, but I want to do this when I have time for not, not
+while I am getting ready for a release.
+
+See TODO/FIXME notes for more details.

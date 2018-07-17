@@ -18,7 +18,11 @@ package com.stehno.ersatz
 import com.stehno.ersatz.auth.BasicAuthHandler
 import com.stehno.ersatz.auth.DigestAuthHandler
 import com.stehno.ersatz.auth.SimpleIdentityManager
-import com.stehno.ersatz.impl.*
+import com.stehno.ersatz.impl.ErsatzRequest
+import com.stehno.ersatz.impl.ExpectationsImpl
+import com.stehno.ersatz.impl.UndertowClientRequest
+import com.stehno.ersatz.impl.UnmatchedRequestReport
+import com.stehno.ersatz.impl.WebSocketsHandlerBuilder
 import groovy.transform.CompileStatic
 import groovy.util.logging.Slf4j
 import io.undertow.Undertow
@@ -44,6 +48,7 @@ import static groovy.transform.TypeCheckingMode.SKIP
 import static io.undertow.UndertowOptions.IDLE_TIMEOUT
 import static io.undertow.UndertowOptions.REQUEST_PARSE_TIMEOUT
 import static io.undertow.util.HttpString.tryFromString
+import static java.nio.ByteBuffer.wrap
 import static java.util.concurrent.TimeUnit.MILLISECONDS
 import static java.util.concurrent.TimeUnit.SECONDS
 
@@ -459,22 +464,22 @@ class ErsatzServer implements ServerConfig, Closeable {
      * An alias to the <code>stop()</code> method.
      */
     @Override
-    void close(){
+    void close() {
         stop()
     }
 
 /**
-     * Used to verify that all of the expected request interactions were called the appropriate number of times. This method should be called after
-     * all test interactions have been performed. This is an optional step since generally you will also be receiving the expected response back
-     * from the server; however, this verification step can come in handy when simply needing to know that a request is actually called or not.
-     *
-     * If there are web socket expectations configured, this method will be blocking against the expected operations. Expectations involving web
-     * sockets should consider using the timeout parameters - the default is 1s.
-     *
-     * @param timeout the timeout value (defaults to 1)
-     * @param unit the timeout unit (defaults to SECONDS)
-     * @return <code>true</code> if all call criteria were met during test execution.
-     */
+ * Used to verify that all of the expected request interactions were called the appropriate number of times. This method should be called after
+ * all test interactions have been performed. This is an optional step since generally you will also be receiving the expected response back
+ * from the server; however, this verification step can come in handy when simply needing to know that a request is actually called or not.
+ *
+ * If there are web socket expectations configured, this method will be blocking against the expected operations. Expectations involving web
+ * sockets should consider using the timeout parameters - the default is 1s.
+ *
+ * @param timeout the timeout value (defaults to 1)
+ * @param unit the timeout unit (defaults to SECONDS)
+ * @return <code>true</code> if all call criteria were met during test execution.
+ */
     boolean verify(final long timeout = 1, final TimeUnit unit = SECONDS) {
         expectations.verify(timeout, unit)
     }
@@ -537,7 +542,8 @@ class ErsatzServer implements ServerConfig, Closeable {
 
         log.debug 'Response({}): {}', exchange.responseHeaders ?: '<no-headers>', responseContent.take(1000) ?: '<empty>'
 
-        exchange.responseSender.send(responseContent)
+//        exchange.responseSender.send(responseContent) - the line below seems to work, so I should be good to go for conversion
+        exchange.responseSender.send(wrap(responseContent.bytes))
     }
 
     private void applyPorts() {

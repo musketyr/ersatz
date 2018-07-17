@@ -37,6 +37,9 @@ class ErsatzResponse implements Response {
     private final ResponseEncoders localEncoders = new ResponseEncoders()
     private final EncoderChain encoderChain = new EncoderChain(localEncoders)
 
+    // FIXME: the encoders will need to support generating byte[] content, not strings
+    // FIXME: the content will need to be stored as byte[] rather than string
+
     ErsatzResponse(final boolean empty, final ResponseEncoders globalEncoders = null) {
         this.empty = empty
 
